@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Call API with Token from Cookie</title>
+  <title>Manual API Trigger</title>
 </head>
 <body>
-  <h1>Call API using Bearer Token from Cookie</h1>
+  <h1>Trigger Call API</h1>
 
   <p><strong>Conversation ID:</strong> <span id="conversationId">Loading...</span></p>
   <button id="callButton" disabled>Call API</button>
@@ -15,44 +15,31 @@
     let conversationId = null;
 
     document.addEventListener('DOMContentLoaded', () => {
-      // Get CID from URL
       const params = new URLSearchParams(window.location.search);
-      conversationId = params.get('cid');
+      conversationId = params.get('cid'); // Get 'cid' parameter
       const displayEl = document.getElementById('conversationId');
-      const callBtn = document.getElementById('callButton');
+      const button = document.getElementById('callButton');
 
       if (conversationId) {
         displayEl.textContent = conversationId;
-        callBtn.disabled = false;
+        button.disabled = false;
       } else {
-        displayEl.textContent = "No 'cid' parameter in URL.";
+        displayEl.textContent = "No 'cid' parameter found in URL.";
       }
 
-      callBtn.addEventListener('click', callAPI);
+      button.addEventListener('click', callAPI);
     });
-
-    // Function to get cookie value by name
-    function getCookieValue(name) {
-      const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-      return match ? decodeURIComponent(match[2]) : null;
-    }
 
     async function callAPI() {
       const statusEl = document.getElementById('status');
       statusEl.textContent = "Calling API...";
-
-      const token = getCookieValue('access_token'); // Adjust name if different
-      if (!token) {
-        statusEl.textContent = "❌ No token found in cookies.";
-        return;
-      }
 
       try {
         const response = await fetch(`/api/v2/conversations/calls/${conversationId}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
+            // 'Authorization': 'Bearer YOUR_ACCESS_TOKEN' // Uncomment if needed
           },
           body: JSON.stringify({
             callNumber: "0832295724",
@@ -60,14 +47,16 @@
           })
         });
 
-        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
 
         const result = await response.json();
-        console.log("API response:", result);
+        console.log("API Success:", result);
         statusEl.textContent = "✅ API call successful.";
-      } catch (error) {
-        console.error("Error:", error);
-        statusEl.textContent = "❌ API call failed: " + error.message;
+      } catch (err) {
+        console.error("API Error:", err);
+        statusEl.textContent = "❌ API call failed: " + err.message;
       }
     }
   </script>
