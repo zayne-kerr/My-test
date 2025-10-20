@@ -39,8 +39,8 @@
 </head>
 <body>
   <div class="container">
-    <h2>Conversation Info</h2>
-    <p><strong>Conversation ID:</strong> <span id="conversationId">Loading...</span></p>
+    <h2>Conversation Info2</h2>
+    <p><strong>Conversation ID2:</strong> <span id="conversationId">Loading...</span></p>
     <p><strong>Status:</strong> <span id="statusText">Checking authentication...</span></p>
     <button id="fetchBtn" disabled>Fetch Conversation</button>
     <h3>API Response:</h3>
@@ -53,8 +53,7 @@
     const REDIRECT_URI = "https://zayne-kerr.github.io/My-test/test.html";
     const AUTH_URL = "https://login.mypurecloud.ie/oauth/authorize";
     const SCOPES = "conversation:call:view conversation:call:edit";
-
-    console.log("Starting script...");
+console.log("Starting script...");
 
 let token = getTokenFromHash();
 console.log("Token from hash:", token);
@@ -73,7 +72,6 @@ if (!token) {
   console.log("Token ready, enabling fetch button.");
 }
 
-    
     // --- GET CONVERSATION ID ---
     const urlParams = new URLSearchParams(window.location.search);
     const conversationId = urlParams.get("cid");
@@ -113,3 +111,53 @@ if (!token) {
       statusText.textContent = "Redirecting to Genesys Cloud login...";
       const authUrl = `${AUTH_URL}?response_type=token&client_id=${encodeURIComponent(
         CLIENT_ID
+      )}&redirect_uri=${encodeURIComponent(
+        REDIRECT_URI
+      )}&scope=${encodeURIComponent(SCOPES)}&state=xyz`;
+      window.location.href = authUrl;
+    } else {
+      statusText.textContent = "Authenticated ✅";
+      fetchBtn.disabled = false;
+    }
+
+    // --- CALL API ---
+    fetchBtn.addEventListener("click", async () => {
+      if (!token) {
+        alert("Missing access token.");
+        return;
+      }
+      if (!conversationId) {
+        alert("Missing conversation ID (?cid=...)");
+        return;
+      }
+
+      statusText.textContent = "Calling API...";
+      try {
+        const response = await fetch(
+          `https://api.mypurecloud.ie/api/v2/conversations/calls/${conversationId}`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              callNumber: "0832295724",
+              phoneColumn: "MSISDN2",
+            }),
+          }
+        );
+
+        const data = await response.json();
+        output.textContent = JSON.stringify(data, null, 2);
+        statusText.textContent = response.ok
+          ? "API call successful ✅"
+          : "API call returned an error ⚠️";
+      } catch (err) {
+        output.textContent = "Error: " + err.message;
+        statusText.textContent = "Error occurred ❌";
+      }
+    });
+  </script>
+</body>
+</html>
