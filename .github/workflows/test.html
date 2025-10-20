@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Show gcConversationId</title>
+</head>
+<body>
+    
+  <h1>gcConversationId:</h1>
+  <p id="conversationId">Loading...</p>
+
+  <script>
+    // Wait until DOM is fully loaded
+    document.addEventListener('DOMContentLoaded', function () {
+      const params = new URLSearchParams(window.location.search);
+      const gcConversationId = params.get('cid');
+      console.log("Extracted id:", gcConversationId);
+      document.getElementById('conversationId').textContent = gcConversationId || 'No gic provided';
+    });
+  </script>
+</body>
+</html>
