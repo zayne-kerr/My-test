@@ -54,6 +54,26 @@
     const AUTH_URL = "https://login.mypurecloud.ie/oauth/authorize";
     const SCOPES = "conversation:call:view conversation:call:edit";
 
+    console.log("Starting script...");
+
+let token = getTokenFromHash();
+console.log("Token from hash:", token);
+
+if (token) {
+  console.log("Token found in hash, saving...");
+  saveToken(token);
+}
+
+token = getToken();
+console.log("Token from session:", token);
+
+if (!token) {
+  console.log("No token found, redirecting...");
+} else {
+  console.log("Token ready, enabling fetch button.");
+}
+
+    
     // --- GET CONVERSATION ID ---
     const urlParams = new URLSearchParams(window.location.search);
     const conversationId = urlParams.get("cid");
