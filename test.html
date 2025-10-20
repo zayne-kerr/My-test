@@ -1,52 +1,166 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Conversation Info2</title>
+  <meta charset="UTF-8">
+  <title>Conversation Info - PKCE</title>
+  <style>
+    body { font-family: "Roboto", sans-serif; background:#f5f6fa; color:#222; padding:2rem; }
+    .container { max-width:650px; margin:auto; background:white; border-radius:12px; padding:2rem; box-shadow:0 2px 10px rgba(0,0,0,0.1);}
+    button { background:#0077cc; color:white; border:none; border-radius:6px; padding:0.6rem 1rem; cursor:pointer; font-size:1rem; margin-top:1rem; }
+    button:hover { background:#005fa3; }
+    pre { background:#f1f1f1; padding:1rem; border-radius:6px; overflow-x:auto; }
+  </style>
 </head>
 <body>
-  <h2>Conversation Info2</h2>
-  <p><strong>Conversation ID:</strong> <span id="conversationId">Loading...</span></p>
-  <p><strong>Status:</strong> <span id="statusText">Checking authentication...</span></p>
-  <button id="fetchBtn" disabled>Fetch Conversation</button>
-  <pre id="responseOutput"></pre>
+  <div class="container">
+    <h2>Conversation Info</h2>
+    <p><strong>Conversation ID:</strong> <span id="conversationId">Loading...</span></p>
+    <p><strong>Status:</strong> <span id="statusText">Initializing...</span></p>
+    <button id="fetchBtn" disabled>Fetch Conversation</button>
+    <h3>API Response:</h3>
+    <pre id="responseOutput">{}</pre>
+  </div>
 
- <script>
-document.addEventListener("DOMContentLoaded", () => {
-  const CLIENT_ID = "277e7dba-0dc0-4066-9f5b-0db9f909ae5b";
-  const REDIRECT_URI = "https://zayne-kerr.github.io/My-test/test.html";
-  const AUTH_URL = "https://login.mypurecloud.ie/oauth/authorize";
-  const SCOPES = "conversation:call:view conversation:call:edit";
+  <script>
+    // =====================
+    // CONFIG
+    // =====================
+    const CLIENT_ID = "277e7dba-0dc0-4066-9f5b-0db9f909ae5b";
+    const REDIRECT_URI = "https://zayne-kerr.github.io/My-test/test.html";
+    const AUTH_URL = "https://login.mypurecloud.ie/oauth/authorize";
+    const TOKEN_URL = "https://login.mypurecloud.ie/oauth/token";
+    const SCOPES = "conversation:call:view conversation:call:edit";
 
-  console.log("🔎 Current URL:", window.location.href);
-  console.log("🔎 Hash:", window.location.hash);
+    const statusText = document.getElementById("statusText");
+    const fetchBtn = document.getElementById("fetchBtn");
+    const output = document.getElementById("responseOutput");
+    const cidText = document.getElementById("conversationId");
 
-  const hash = window.location.hash.substring(1);
-  const params = new URLSearchParams(hash);
-  const token = params.get("access_token");
+    // =====================
+    // HELPER FUNCTIONS
+    // =====================
+    function base64urlencode(str) {
+      return btoa(String.fromCharCode.apply(null, new Uint8Array(str)))
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+    }
 
-  if (token) {
-    console.log("✅ Found access_token, saving...");
-    sessionStorage.setItem("gc_token", token);
-    window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
-    document.body.innerHTML = "<h3>Token captured ✅</h3>";
-    return;
-  }
+    async function sha256(buffer) {
+      return await crypto.subtle.digest("SHA-256", buffer);
+    }
 
-  const saved = sessionStorage.getItem("gc_token");
-  if (!saved) {
-    const authUrl =
-      `${AUTH_URL}?response_type=token` +
-      `&client_id=${encodeURIComponent(CLIENT_ID)}` +
-      `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-      `&scope=${encodeURIComponent(SCOPES)}&state=xyz`;
-    console.log("🔁 Redirecting to:", authUrl);
-    window.location.href = authUrl;
-  } else {
-    document.body.innerHTML = "<h3>Token loaded ✅</h3>";
-  }
-});
-</script>
+    function generateRandomString(length = 64) {
+      const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+      let result = "";
+      const values = crypto.getRandomValues(new Uint8Array(length));
+      for (let i = 0; i < length; i++) result += charset[values[i] % charset.length];
+      return result;
+    }
 
+    function getParamFromUrl(name) {
+      const params = new URLSearchParams(window.location.search);
+      return params.get(name);
+    }
+
+    // =====================
+    // PKCE AUTH FLOW
+    // =====================
+    async function startAuth() {
+      const codeVerifier = generateRandomString(64);
+      sessionStorage.setItem("pkce_code_verifier", codeVerifier);
+
+      const encoder = new TextEncoder();
+      const codeHash = await sha256(encoder.encode(codeVerifier));
+      const codeChallenge = base64urlencode(codeHash);
+
+      const authUrl = `${AUTH_URL}?response_type=code&client_id=${encodeURIComponent(CLIENT_ID)}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}&code_challenge_method=S256&code_challenge=${codeChallenge}`;
+      window.location.href = authUrl;
+    }
+
+    async function fetchToken(code) {
+      const codeVerifier = sessionStorage.getItem("pkce_code_verifier");
+      if (!codeVerifier) throw new Error("PKCE code verifier missing");
+
+      const body = new URLSearchParams({
+        grant_type: "authorization_code",
+        code: code,
+        redirect_uri: REDIRECT_URI,
+        client_id: CLIENT_ID,
+        code_verifier: codeVerifier
+      });
+
+      const response = await fetch(TOKEN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString()
+      });
+
+      const data = await response.json();
+      if (data.access_token) {
+        sessionStorage.setItem("gc_token", data.access_token);
+        return data.access_token;
+      } else {
+        throw new Error("Token request failed: " + JSON.stringify(data));
+      }
+    }
+
+    async function main() {
+      cidText.textContent = getParamFromUrl("cid") || "Not found";
+
+      let token = sessionStorage.getItem("gc_token");
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get("code");
+
+      if (!token && !code) {
+        statusText.textContent = "Redirecting for authentication...";
+        return startAuth();
+      }
+
+      if (!token && code) {
+        statusText.textContent = "Exchanging code for token...";
+        try {
+          token = await fetchToken(code);
+          statusText.textContent = "Authenticated ✅";
+          fetchBtn.disabled = false;
+          // Clean URL
+          window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+        } catch (err) {
+          statusText.textContent = "Auth error ❌";
+          output.textContent = err;
+          return;
+        }
+      } else if (token) {
+        statusText.textContent = "Authenticated ✅";
+        fetchBtn.disabled = false;
+      }
+
+      fetchBtn.addEventListener("click", async () => {
+        const conversationId = getParamFromUrl("cid");
+        if (!conversationId) return alert("Missing ?cid=...");
+
+        statusText.textContent = "Calling API...";
+        try {
+          const response = await fetch(`https://api.mypurecloud.ie/api/v2/conversations/calls/${conversationId}`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ callNumber: "0832295724", phoneColumn: "MSISDN2" })
+          });
+          const data = await response.json();
+          output.textContent = JSON.stringify(data, null, 2);
+          statusText.textContent = response.ok ? "API call successful ✅" : `API error ⚠️ (${response.status})`;
+        } catch (err) {
+          output.textContent = "Error: " + err.message;
+          statusText.textContent = "Error occurred ❌";
+        }
+      });
+    }
+
+    main();
+  </script>
 </body>
 </html>
