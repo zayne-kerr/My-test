@@ -1,45 +1,128 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Manual API Trigger</title>
+  <meta charset="UTF-8" />
+  <title>Conversation Info</title>
+  <style>
+    body {
+      font-family: "Roboto", sans-serif;
+      background: #f5f6fa;
+      color: #222;
+      padding: 2rem;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem 2rem;
+      max-width: 650px;
+      margin: auto;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h2 {
+      margin-bottom: 0.5rem;
+    }
+    #conversationId {
+      color: #0077cc;
+      font-weight: bold;
+    }
+    button {
+      background: #0077cc;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 0.6rem 1rem;
+      cursor: pointer;
+      font-size: 1rem;
+      margin-top: 1rem;
+    }
+    button:hover {
+      background: #005fa3;
+    }
+    pre {
+      background: #f1f1f1;
+      padding: 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+  </style>
 </head>
 <body>
-  <h1>Trigger Call API (FullURL)</h1>
+  <div class="container">
+    <h2>Conversation Info</h2>
+    <p><strong>Conversation ID:</strong> <span id="conversationId">Loading...</span></p>
+    <p><strong>Status:</strong> <span id="statusText">Authenticating...</span></p>
 
-  <p><strong>Conversation ID:</strong> <span id="conversationId">Loading...</span></p>
-  <button id="callButton" disabled>Call API</button>
-  <p id="status"></p>
+    <button id="fetchBtn" disabled>Fetch Conversation</button>
+
+    <h3>API Response:</h3>
+    <pre id="responseOutput">{}</pre>
+  </div>
 
   <script>
-    let conversationId = null;
+    // =====================
+    // CONFIGURATION SECTION
+    // =====================
+    const CLIENT_ID = "YOUR_CLIENT_ID_HERE"; // 👈 Replace with your OAuth client ID
+    const REDIRECT_URI = "https://zayne-kerr.github.io/My-test/test.html";
+    const AUTH_URL = "https://login.mypurecloud.ie/oauth/authorize";
+    const SCOPES = "conversation:call:view conversation:call:edit";
 
-    document.addEventListener('DOMContentLoaded', () => {
-      const params = new URLSearchParams(window.location.search);
-      conversationId = params.get('cid'); // Get 'cid' parameter
-      const displayEl = document.getElementById('conversationId');
-      const button = document.getElementById('callButton');
+    // =====================
+    // MAIN LOGIC
+    // =====================
+    const urlParams = new URLSearchParams(window.location.search);
+    const conversationId = urlParams.get('cid');
+    const conversationDisplay = document.getElementById('conversationId');
+    const statusText = document.getElementById('statusText');
+    const fetchBtn = document.getElementById('fetchBtn');
+    const output = document.getElementById('responseOutput');
 
-      if (conversationId) {
-        displayEl.textContent = conversationId;
-        button.disabled = false;
-      } else {
-        displayEl.textContent = "No 'cid' parameter found in URL.";
+    conversationDisplay.textContent = conversationId || "Not found";
+
+    // --- 1. Extract token from URL hash (after OAuth redirect)
+    function getTokenFromHash() {
+      const hash = window.location.hash.substring(1);
+      const params = new URLSearchParams(hash);
+      return params.get("access_token");
+    }
+
+    let token = getTokenFromHash();
+
+    // --- 2. If no token, start the OAuth Implicit Grant flow
+    if (!token) {
+      const authUrl = `${AUTH_URL}?response_type=token&client_id=${encodeURIComponent(
+        CLIENT_ID
+      )}&redirect_uri=${encodeURIComponent(
+        REDIRECT_URI
+      )}&scope=${encodeURIComponent(SCOPES)}&state=xyz`;
+      statusText.textContent = "Redirecting for authentication...";
+      window.location.href = authUrl;
+    } else {
+      statusText.textContent = "Authenticated ✅";
+      fetchBtn.disabled = false;
+      // Clean the hash from the URL (optional)
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+    }
+
+    // --- 3. On button click, call the API
+    fetchBtn.addEventListener("click", async () => {
+      if (!token) {
+        alert("Missing access token.");
+        return;
+      }
+      if (!conversationId) {
+        alert("Missing conversation ID (?cid=...)");
+        return;
       }
 
-      button.addEventListener('click', callAPI);
-    });
-
-    async function callAPI() {
-      const statusEl = document.getElementById('status');
-      statusEl.textContent = "Calling API...";
+      statusText.textContent = "Calling API...";
 
       try {
         const response = await fetch(`https://api.mypurecloud.ie/api/v2/conversations/calls/${conversationId}`, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            // 'Authorization': 'Bearer YOUR_ACCESS_TOKEN' // Uncomment if needed
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
           },
           body: JSON.stringify({
             callNumber: "0832295724",
@@ -47,18 +130,14 @@
           })
         });
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const result = await response.json();
-        console.log("API Success:", result);
-        statusEl.textContent = "✅ API call successful.";
+        const data = await response.json();
+        output.textContent = JSON.stringify(data, null, 2);
+        statusText.textContent = response.ok ? "API call successful ✅" : "API call returned an error ⚠️";
       } catch (err) {
-        console.error("API Error:", err);
-        statusEl.textContent = "❌ API call failed: " + err.message;
+        output.textContent = "Error: " + err.message;
+        statusText.textContent = "Error occurred ❌";
       }
-    }
+    });
   </script>
 </body>
 </html>
