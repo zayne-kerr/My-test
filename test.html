@@ -2,21 +2,74 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Show gcConversationId</title>
+  <title>Call API with Token from Cookie</title>
 </head>
 <body>
-    
-  <h1>gcConversationId:</h1>
-  <p id="conversationId">Loading...</p>
+  <h1>Call API using Bearer Token from Cookie</h1>
+
+  <p><strong>Conversation ID:</strong> <span id="conversationId">Loading...</span></p>
+  <button id="callButton" disabled>Call API</button>
+  <p id="status"></p>
 
   <script>
-    // Wait until DOM is fully loaded
-    document.addEventListener('DOMContentLoaded', function () {
+    let conversationId = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Get CID from URL
       const params = new URLSearchParams(window.location.search);
-      const gcConversationId = params.get('cid');
-      console.log("Extracted id:", gcConversationId);
-      document.getElementById('conversationId').textContent = gcConversationId || 'No gic provided';
+      conversationId = params.get('cid');
+      const displayEl = document.getElementById('conversationId');
+      const callBtn = document.getElementById('callButton');
+
+      if (conversationId) {
+        displayEl.textContent = conversationId;
+        callBtn.disabled = false;
+      } else {
+        displayEl.textContent = "No 'cid' parameter in URL.";
+      }
+
+      callBtn.addEventListener('click', callAPI);
     });
+
+    // Function to get cookie value by name
+    function getCookieValue(name) {
+      const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+      return match ? decodeURIComponent(match[2]) : null;
+    }
+
+    async function callAPI() {
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = "Calling API...";
+
+      const token = getCookieValue('access_token'); // Adjust name if different
+      if (!token) {
+        statusEl.textContent = "❌ No token found in cookies.";
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/v2/conversations/calls/${conversationId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({
+            callNumber: "0832295724",
+            phoneColumn: "MSISDN2"
+          })
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+
+        const result = await response.json();
+        console.log("API response:", result);
+        statusEl.textContent = "✅ API call successful.";
+      } catch (error) {
+        console.error("Error:", error);
+        statusEl.textContent = "❌ API call failed: " + error.message;
+      }
+    }
   </script>
 </body>
 </html>
