@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Genesys Cloud Demo – Version: 10</title>
+  <title>Genesys Cloud Demo – Version: 11</title>
   <style>
     body { font-family: system-ui; margin: 2rem; }
     h1 { font-size: 1.2rem; margin-bottom: 1rem; }
@@ -15,6 +15,7 @@
       color: white; 
       cursor: pointer; 
       margin-left: 4px;
+      margin-top: 8px;
     }
     input[type=text] { width: 200px; padding: 4px; margin-right: 4px; }
     .field { margin-top: 8px; }
@@ -23,7 +24,7 @@
   </style>
 </head>
 <body>
-  <h1>Version: 10</h1>
+  <h1>Version: 11</h1>
   <p><strong>Conversation ID:</strong> <span id="cidValue">(none)</span></p>
 
   <div id="authSection">
@@ -39,6 +40,7 @@
     <div class="section">
       <button id="btnGetOutbound">Get Outbound Record</button>
       <div id="outboundFields" class="field">(Outbound fields)</div>
+      <button id="btnUpdateAll" style="display:none;">Update Both Fields</button>
     </div>
   </div>
 
@@ -57,6 +59,7 @@
     const authSection = document.getElementById("authSection");
     const convOutput = document.getElementById("convOutput");
     const outboundFields = document.getElementById("outboundFields");
+    const btnUpdateAll = document.getElementById("btnUpdateAll");
 
     const btnGetConversation = document.getElementById("btnGetConversation");
     const btnGetOutbound = document.getElementById("btnGetOutbound");
@@ -149,6 +152,7 @@
 
         outboundData = data; // keep full record for updates
         renderOutboundFields();
+        btnUpdateAll.style.display = "inline-block"; // show Update button
       } catch (err) {
         output.textContent = "Error: " + err;
       }
@@ -163,28 +167,23 @@
         input.id = field;
         input.value = value;
 
-        const updateBtn = document.createElement("button");
-        updateBtn.textContent = "Update";
-        updateBtn.onclick = () => updateOutboundField(field, input.value);
-
         const manualBtn = document.createElement("button");
         manualBtn.textContent = "Manual Call";
-        manualBtn.style.display = "none";
         manualBtn.onclick = () => output.textContent = `Manual Call triggered for ${field}`;
 
         outboundFields.appendChild(document.createTextNode(field + ": "));
         outboundFields.appendChild(input);
-        outboundFields.appendChild(updateBtn);
         outboundFields.appendChild(manualBtn);
         outboundFields.appendChild(document.createElement("br"));
       });
     }
 
-    async function updateOutboundField(field, value) {
-      output.textContent = `Updating ${field}...`;
-      outboundData.data[field] = value; // update only the specific field
+    // --- Update Both Fields Button ---
+    btnUpdateAll.onclick = async () => {
+      output.textContent = "Updating OTHER1 and OTHER2...";
+      outboundData.data.OTHER1 = document.getElementById("OTHER1").value;
+      outboundData.data.OTHER2 = document.getElementById("OTHER2").value;
 
-      // Prepare full PUT payload
       const payload = {
         contactListId: dialerContactListId,
         data: outboundData.data
@@ -199,23 +198,16 @@
           },
           body: JSON.stringify(payload)
         });
-
         const data = await resp.json();
         if (!resp.ok) {
           output.textContent = `Error ${resp.status}: ${JSON.stringify(data, null, 2)}`;
           return;
         }
-
-        output.textContent = `✅ ${field} updated successfully.`;
-
-        // Show Manual Call button next to the updated field
-        const input = document.getElementById(field);
-        const manualBtn = input.nextSibling.nextSibling; // the manual button
-        manualBtn.style.display = "inline-block";
+        output.textContent = "✅ OTHER1 and OTHER2 updated successfully. Manual Call buttons always visible.";
       } catch (err) {
         output.textContent = "Error: " + err;
       }
-    }
+    };
   </script>
 </body>
 </html>
