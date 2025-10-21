@@ -1,3 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Genesys Cloud Demo – Version: 6</title>
+  <style>
+    body { font-family: system-ui; margin: 2rem; }
+    h1 { font-size: 1.2rem; margin-bottom: 1rem; }
+    button { 
+      padding: 10px 18px; 
+      font-size: 16px; 
+      border: none; 
+      border-radius: 6px; 
+      background: #007bff; 
+      color: white; 
+      cursor: pointer; 
+      margin-right: 8px; 
+      margin-top: 8px;
+    }
+    pre { background: #f4f4f4; padding: 10px; border-radius: 6px; margin-top: 1rem; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Version: 7</h1>
+  <p><strong>Conversation ID:</strong> <span id="cidValue">(none)</span></p>
+
+  <div id="authSection">
+    <button id="loginBtn">Login</button>
+  </div>
+
+  <div id="apiSection" style="display:none;">
+    <button id="btnGetConversation">Get Conversation</button>
+    <button id="btnGetOutbound">Get Outbound Record</button>
+    <button id="btnUpdateContact">Update Contact</button>
+    <button id="btnManualCall">Manual Call</button>
+  </div>
+
+  <pre id="output">(no response yet)</pre>
+
 <!-- Only the updated script section for Version 7 -->
 <script>
   // --- Button 2: Get Outbound Record ---
@@ -31,3 +70,8 @@
     }
   };
 </script>
+
+
+  
+</body>
+</html>
