@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Genesys Cloud Demo – Version: 9</title>
+  <title>Genesys Cloud Demo – Version: 10</title>
   <style>
     body { font-family: system-ui; margin: 2rem; }
     h1 { font-size: 1.2rem; margin-bottom: 1rem; }
@@ -23,7 +23,7 @@
   </style>
 </head>
 <body>
-  <h1>Version: 9</h1>
+  <h1>Version: 10</h1>
   <p><strong>Conversation ID:</strong> <span id="cidValue">(none)</span></p>
 
   <div id="authSection">
@@ -65,7 +65,7 @@
     let cid = null;
     let dialerContactId = null;
     let dialerContactListId = null;
-    let outboundData = null;
+    let outboundData = null; // stores full outbound record
 
     // --- Handle Conversation ID ---
     const urlParams = new URLSearchParams(window.location.search);
@@ -147,7 +147,7 @@
           return;
         }
 
-        outboundData = data.data || {};
+        outboundData = data; // keep full record for updates
         renderOutboundFields();
       } catch (err) {
         output.textContent = "Error: " + err;
@@ -156,9 +156,8 @@
 
     function renderOutboundFields() {
       outboundFields.innerHTML = "";
-
-      ["Other1", "Other2"].forEach(field => {
-        const value = outboundData[field] || "";
+      ["OTHER1", "OTHER2"].forEach(field => {
+        const value = outboundData.data[field] || "";
         const input = document.createElement("input");
         input.type = "text";
         input.id = field;
@@ -166,7 +165,7 @@
 
         const updateBtn = document.createElement("button");
         updateBtn.textContent = "Update";
-        updateBtn.onclick = () => updateField(field, input.value);
+        updateBtn.onclick = () => updateOutboundField(field, input.value);
 
         const manualBtn = document.createElement("button");
         manualBtn.textContent = "Manual Call";
@@ -181,14 +180,15 @@
       });
     }
 
-    async function updateField(field, value) {
-      const input = document.getElementById(field);
-      const manualBtn = input.nextSibling.nextSibling; // the manual button next to update
+    async function updateOutboundField(field, value) {
       output.textContent = `Updating ${field}...`;
+      outboundData.data[field] = value; // update only the specific field
 
-      // Update payload
-      const payload = { ...outboundData };
-      payload[field] = value;
+      // Prepare full PUT payload
+      const payload = {
+        contactListId: dialerContactListId,
+        data: outboundData.data
+      };
 
       try {
         const resp = await fetch(`${API_HOST}/api/v2/outbound/contactlists/${dialerContactListId}/contacts/${dialerContactId}`, {
@@ -199,14 +199,18 @@
           },
           body: JSON.stringify(payload)
         });
+
         const data = await resp.json();
         if (!resp.ok) {
           output.textContent = `Error ${resp.status}: ${JSON.stringify(data, null, 2)}`;
           return;
         }
+
         output.textContent = `✅ ${field} updated successfully.`;
 
-        // Enable Manual Call button
+        // Show Manual Call button next to the updated field
+        const input = document.getElementById(field);
+        const manualBtn = input.nextSibling.nextSibling; // the manual button
         manualBtn.style.display = "inline-block";
       } catch (err) {
         output.textContent = "Error: " + err;
