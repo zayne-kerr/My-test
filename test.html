@@ -2,27 +2,28 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Genesys Cloud Demo – Version: 8</title>
+  <title>Genesys Cloud Demo – Version: 9</title>
   <style>
     body { font-family: system-ui; margin: 2rem; }
     h1 { font-size: 1.2rem; margin-bottom: 1rem; }
     button { 
-      padding: 10px 18px; 
-      font-size: 16px; 
+      padding: 6px 12px; 
+      font-size: 14px; 
       border: none; 
       border-radius: 6px; 
       background: #007bff; 
       color: white; 
       cursor: pointer; 
-      margin-right: 8px; 
-      margin-top: 8px;
+      margin-left: 4px;
     }
-    pre { background: #f4f4f4; padding: 10px; border-radius: 6px; margin-top: 1rem; white-space: pre-wrap; }
-    .field { font-weight: bold; margin-top: 8px; }
+    input[type=text] { width: 200px; padding: 4px; margin-right: 4px; }
+    .field { margin-top: 8px; }
+    .section { margin-top: 16px; }
+    pre { background: #f4f4f4; padding: 10px; border-radius: 6px; white-space: pre-wrap; }
   </style>
 </head>
 <body>
-  <h1>Version: 8</h1>
+  <h1>Version: 9</h1>
   <p><strong>Conversation ID:</strong> <span id="cidValue">(none)</span></p>
 
   <div id="authSection">
@@ -30,16 +31,18 @@
   </div>
 
   <div id="apiSection" style="display:none;">
-    <button id="btnGetConversation">Get Conversation</button>
-    <button id="btnGetOutbound">Get Outbound Record</button>
-    <button id="btnUpdateContact">Update Contact</button>
-    <button id="btnManualCall">Manual Call</button>
+    <div class="section">
+      <button id="btnGetConversation">Get Conversation</button>
+      <div id="convOutput" class="field">(Conversation output)</div>
+    </div>
+
+    <div class="section">
+      <button id="btnGetOutbound">Get Outbound Record</button>
+      <div id="outboundFields" class="field">(Outbound fields)</div>
+    </div>
   </div>
 
-  <div id="responseSection">
-    <div class="field">Output:</div>
-    <pre id="output">(no response yet)</pre>
-  </div>
+  <pre id="output">(no response yet)</pre>
 
   <script>
     const CLIENT_ID = "277e7dba-0dc0-4066-9f5b-0db9f909ae5b";
@@ -52,19 +55,21 @@
     const loginBtn = document.getElementById("loginBtn");
     const apiSection = document.getElementById("apiSection");
     const authSection = document.getElementById("authSection");
+    const convOutput = document.getElementById("convOutput");
+    const outboundFields = document.getElementById("outboundFields");
 
     const btnGetConversation = document.getElementById("btnGetConversation");
     const btnGetOutbound = document.getElementById("btnGetOutbound");
-    const btnUpdateContact = document.getElementById("btnUpdateContact");
-    const btnManualCall = document.getElementById("btnManualCall");
 
     let accessToken = null;
+    let cid = null;
     let dialerContactId = null;
     let dialerContactListId = null;
+    let outboundData = null;
 
     // --- Handle Conversation ID ---
     const urlParams = new URLSearchParams(window.location.search);
-    let cid = urlParams.get("cid");
+    cid = urlParams.get("cid");
     if (cid) sessionStorage.setItem("cid", cid);
     else cid = sessionStorage.getItem("cid");
     cidSpan.textContent = cid ? cid : "(none)";
@@ -78,7 +83,6 @@
       authSuccess();
     }
 
-    // --- Login Button ---
     loginBtn.onclick = () => {
       if (cid) sessionStorage.setItem("cid", cid);
       const authUrl = `${AUTH_URL}?response_type=token&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE_URI)}&force_login=false`;
@@ -105,7 +109,6 @@
           return;
         }
 
-        // Get nested attributes
         const participant = data.participants && data.participants[0];
         if (participant && participant.attributes) {
           dialerContactId = participant.attributes.dialerContactId || "(none)";
@@ -115,7 +118,7 @@
           dialerContactListId = "(none)";
         }
 
-        output.textContent = `✅ Callback Conversation Retrieved\n\nDialer Contact ID: ${dialerContactId}\nDialer Contact List ID: ${dialerContactListId}`;
+        convOutput.textContent = `Dialer Contact ID: ${dialerContactId}, Dialer Contact List ID: ${dialerContactListId}`;
       } catch (err) {
         output.textContent = "Error: " + err;
       }
@@ -125,7 +128,7 @@
     btnGetOutbound.onclick = async () => {
       if (!accessToken) { output.textContent = "Not logged in."; return; }
       if (!dialerContactId || !dialerContactListId) { 
-        output.textContent = "Please run 'Get Conversation' first to retrieve Contact IDs."; 
+        output.textContent = "Please run 'Get Conversation' first."; 
         return; 
       }
 
@@ -144,21 +147,71 @@
           return;
         }
 
-        output.textContent = `✅ Outbound Contact Record Retrieved\n\n${JSON.stringify(data, null, 2)}`;
+        outboundData = data.data || {};
+        renderOutboundFields();
       } catch (err) {
         output.textContent = "Error: " + err;
       }
     };
 
-    // --- Button 3: Update Contact (placeholder) ---
-    btnUpdateContact.onclick = () => {
-      output.textContent = "✏️ Update Contact API will be implemented once endpoint details are supplied.";
-    };
+    function renderOutboundFields() {
+      outboundFields.innerHTML = "";
 
-    // --- Button 4: Manual Call (placeholder) ---
-    btnManualCall.onclick = () => {
-      output.textContent = "📲 Manual Call API will be implemented once endpoint details are supplied.";
-    };
+      ["Other1", "Other2"].forEach(field => {
+        const value = outboundData[field] || "";
+        const input = document.createElement("input");
+        input.type = "text";
+        input.id = field;
+        input.value = value;
+
+        const updateBtn = document.createElement("button");
+        updateBtn.textContent = "Update";
+        updateBtn.onclick = () => updateField(field, input.value);
+
+        const manualBtn = document.createElement("button");
+        manualBtn.textContent = "Manual Call";
+        manualBtn.style.display = "none";
+        manualBtn.onclick = () => output.textContent = `Manual Call triggered for ${field}`;
+
+        outboundFields.appendChild(document.createTextNode(field + ": "));
+        outboundFields.appendChild(input);
+        outboundFields.appendChild(updateBtn);
+        outboundFields.appendChild(manualBtn);
+        outboundFields.appendChild(document.createElement("br"));
+      });
+    }
+
+    async function updateField(field, value) {
+      const input = document.getElementById(field);
+      const manualBtn = input.nextSibling.nextSibling; // the manual button next to update
+      output.textContent = `Updating ${field}...`;
+
+      // Update payload
+      const payload = { ...outboundData };
+      payload[field] = value;
+
+      try {
+        const resp = await fetch(`${API_HOST}/api/v2/outbound/contactlists/${dialerContactListId}/contacts/${dialerContactId}`, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          output.textContent = `Error ${resp.status}: ${JSON.stringify(data, null, 2)}`;
+          return;
+        }
+        output.textContent = `✅ ${field} updated successfully.`;
+
+        // Enable Manual Call button
+        manualBtn.style.display = "inline-block";
+      } catch (err) {
+        output.textContent = "Error: " + err;
+      }
+    }
   </script>
 </body>
 </html>
