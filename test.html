@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Genesys Cloud Demo – Version: 12</title>
+  <title>Genesys Cloud Demo – Version: 13</title>
   <style>
     body { font-family: system-ui; margin: 2rem; }
     h1 { font-size: 1.2rem; margin-bottom: 1rem; }
@@ -24,21 +24,15 @@
   </style>
 </head>
 <body>
-  <h1>Version: 12</h1>
+  <h1>Version: 13</h1>
   <p><strong>Conversation ID:</strong> <span id="cidValue">(none)</span></p>
-
-  <div id="authSection">
-    <button id="loginBtn">Login</button>
-  </div>
 
   <div id="apiSection" style="display:none;">
     <div class="section">
-      <button id="btnGetConversation">Get Conversation</button>
       <div id="convOutput" class="field">(Conversation output)</div>
     </div>
 
     <div class="section">
-      <button id="btnGetOutbound">Get Outbound Record</button>
       <div id="outboundFields" class="field">(Outbound fields)</div>
       <button id="btnUpdateAll" style="display:none;">Update Both Fields</button>
     </div>
@@ -54,15 +48,10 @@
 
     const output = document.getElementById("output");
     const cidSpan = document.getElementById("cidValue");
-    const loginBtn = document.getElementById("loginBtn");
     const apiSection = document.getElementById("apiSection");
-    const authSection = document.getElementById("authSection");
     const convOutput = document.getElementById("convOutput");
     const outboundFields = document.getElementById("outboundFields");
     const btnUpdateAll = document.getElementById("btnUpdateAll");
-
-    const btnGetConversation = document.getElementById("btnGetConversation");
-    const btnGetOutbound = document.getElementById("btnGetOutbound");
 
     let accessToken = null;
     let cid = null;
@@ -70,49 +59,39 @@
     let dialerContactListId = null;
     let outboundData = null;
 
-    // --- Handle Conversation ID ---
+    // --- Conversation ID ---
     const urlParams = new URLSearchParams(window.location.search);
     cid = urlParams.get("cid");
     if (cid) sessionStorage.setItem("cid", cid);
     else cid = sessionStorage.getItem("cid");
     cidSpan.textContent = cid ? cid : "(none)";
 
-    // --- Handle Token ---
+    // --- Check access token in hash ---
     const hash = window.location.hash;
     if (hash.includes("access_token")) {
       const params = new URLSearchParams(hash.substring(1));
       accessToken = params.get("access_token");
       window.history.replaceState({}, document.title, window.location.href.split("#")[0]);
-      authSuccess();
-    }
-
-    loginBtn.onclick = () => {
-      if (cid) sessionStorage.setItem("cid", cid);
+      startFlow();
+    } else {
+      // Redirect to OAuth login
       const authUrl = `${AUTH_URL}?response_type=token&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE_URI)}&force_login=false`;
       window.location = authUrl;
-    };
-
-    function authSuccess() {
-      authSection.style.display = "none";
-      apiSection.style.display = "block";
-      output.textContent = "✅ Logged in.\nReady to call APIs.";
     }
 
-    // --- Get Conversation ---
-    btnGetConversation.onclick = async () => {
-      if (!cid) { output.textContent = "No Conversation ID found."; return; }
-      output.textContent = "Getting callback conversation details...";
+    async function startFlow() {
+      apiSection.style.display = "block";
+      output.textContent = "✅ Logged in. Fetching Conversation and Outbound Record...";
+
       try {
-        const resp = await fetch(`${API_HOST}/api/v2/conversations/callbacks/${cid}`, {
+        // --- Get Conversation ---
+        const convResp = await fetch(`${API_HOST}/api/v2/conversations/callbacks/${cid}`, {
           headers: { Authorization: `Bearer ${accessToken}` }
         });
-        const data = await resp.json();
-        if (!resp.ok) {
-          output.textContent = `Error ${resp.status}: ${JSON.stringify(data, null, 2)}`;
-          return;
-        }
+        const convData = await convResp.json();
+        if (!convResp.ok) { output.textContent = `Error getting conversation: ${JSON.stringify(convData, null,2)}`; return; }
 
-        const participant = data.participants && data.participants[0];
+        const participant = convData.participants && convData.participants[0];
         if (participant && participant.attributes) {
           dialerContactId = participant.attributes.dialerContactId || "(none)";
           dialerContactListId = participant.attributes.dialerContactListId || "(none)";
@@ -120,128 +99,86 @@
           dialerContactId = "(none)";
           dialerContactListId = "(none)";
         }
-
         convOutput.textContent = `Dialer Contact ID: ${dialerContactId}, Dialer Contact List ID: ${dialerContactListId}`;
-      } catch (err) {
-        output.textContent = "Error: " + err;
-      }
-    };
 
-    // --- Get Outbound Record ---
-    btnGetOutbound.onclick = async () => {
-      if (!accessToken) { output.textContent = "Not logged in."; return; }
-      if (!dialerContactId || !dialerContactListId) { 
-        output.textContent = "Please run 'Get Conversation' first."; 
-        return; 
-      }
-
-      output.textContent = "Fetching outbound contact record...";
-      try {
-        const resp = await fetch(`${API_HOST}/api/v2/outbound/contactlists/${dialerContactListId}/contacts/${dialerContactId}`, {
+        // --- Get Outbound Record ---
+        const outResp = await fetch(`${API_HOST}/api/v2/outbound/contactlists/${dialerContactListId}/contacts/${dialerContactId}`, {
           method: "GET",
           headers: { 
             "Authorization": `Bearer ${accessToken}`,
             "Content-Type": "application/json"
           }
         });
-        const data = await resp.json();
-        if (!resp.ok) {
-          output.textContent = `Error ${resp.status}: ${JSON.stringify(data, null, 2)}`;
-          return;
-        }
+        const outData = await outResp.json();
+        if (!outResp.ok) { output.textContent = `Error getting outbound: ${JSON.stringify(outData,null,2)}`; return; }
 
-        outboundData = data;
+        outboundData = outData;
         renderOutboundFields();
         btnUpdateAll.style.display = "inline-block";
-      } catch (err) {
-        output.textContent = "Error: " + err;
+
+      } catch(err) {
+        output.textContent = "Error: "+err;
       }
-    };
+    }
 
     function renderOutboundFields() {
       outboundFields.innerHTML = "";
-      ["OTHER1", "OTHER2"].forEach(field => {
-        const value = outboundData.data[field] || "";
+      ["OTHER1","OTHER2"].forEach(field=>{
+        const value = outboundData.data[field]||"";
         const input = document.createElement("input");
-        input.type = "text";
-        input.id = field;
-        input.value = value;
+        input.type="text"; input.id=field; input.value=value;
 
         const manualBtn = document.createElement("button");
-        manualBtn.textContent = "Manual Call";
-        manualBtn.onclick = () => manualDial(field);
+        manualBtn.textContent="Manual Call";
+        manualBtn.onclick=()=>manualDial(field);
 
-        outboundFields.appendChild(document.createTextNode(field + ": "));
+        outboundFields.appendChild(document.createTextNode(field+": "));
         outboundFields.appendChild(input);
         outboundFields.appendChild(manualBtn);
         outboundFields.appendChild(document.createElement("br"));
       });
     }
 
-    // --- Update Both Fields ---
-    btnUpdateAll.onclick = async () => {
-      output.textContent = "Updating OTHER1 and OTHER2...";
-      outboundData.data.OTHER1 = document.getElementById("OTHER1").value;
-      outboundData.data.OTHER2 = document.getElementById("OTHER2").value;
+    // --- Update BOTH OTHER1 and OTHER2 ---
+    async function updateFields() {
+      outboundData.data.OTHER1=document.getElementById("OTHER1").value;
+      outboundData.data.OTHER2=document.getElementById("OTHER2").value;
 
-      const payload = {
-        contactListId: dialerContactListId,
-        data: outboundData.data
-      };
-
+      const payload = { contactListId:dialerContactListId, data: outboundData.data };
       try {
         const resp = await fetch(`${API_HOST}/api/v2/outbound/contactlists/${dialerContactListId}/contacts/${dialerContactId}`, {
           method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${accessToken}`,
-            "Content-Type": "application/json"
-          },
+          headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
         const data = await resp.json();
-        if (!resp.ok) {
-          output.textContent = `Error ${resp.status}: ${JSON.stringify(data, null, 2)}`;
-          return;
-        }
-        output.textContent = "✅ OTHER1 and OTHER2 updated successfully.";
-      } catch (err) {
-        output.textContent = "Error: " + err;
-      }
-    };
+        if (!resp.ok) { output.textContent=`Error updating fields: ${JSON.stringify(data,null,2)}`; return; }
+        output.textContent="✅ OTHER1 and OTHER2 updated successfully.";
+      } catch(err) { output.textContent="Error: "+err; }
+    }
 
-    // --- Manual Dial Function ---
+    // --- Manual Dial (update first) ---
     async function manualDial(field) {
+      output.textContent = `Updating fields before dialing ${field}...`;
+      await updateFields(); // update first
+
       const number = document.getElementById(field).value;
-      if (!cid) { output.textContent = "No Conversation ID for manual dial."; return; }
-      if (!number) { output.textContent = `${field} is empty.`; return; }
+      if (!cid) { output.textContent="No Conversation ID."; return; }
+      if (!number) { output.textContent=`${field} is empty.`; return; }
 
-      const body = {
-        callNumber: number,
-        phoneColumn: field
-      };
-
+      const body = { callNumber:number, phoneColumn:field };
       output.textContent = `Dialing ${number} from ${field}...`;
 
       try {
         const resp = await fetch(`${API_HOST}/api/v2/conversations/calls/${cid}`, {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${accessToken}`,
-            "Content-Type": "application/json"
-          },
+          headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
           body: JSON.stringify(body)
         });
-
         const data = await resp.json();
-        if (!resp.ok) {
-          output.textContent = `Error ${resp.status}: ${JSON.stringify(data, null, 2)}`;
-          return;
-        }
-
-        output.textContent = `✅ Call initiated to ${number} (field: ${field})`;
-      } catch (err) {
-        output.textContent = "Error: " + err;
-      }
+        if (!resp.ok) { output.textContent=`Error ${resp.status}: ${JSON.stringify(data,null,2)}`; return; }
+        output.textContent=`✅ Call initiated to ${number} (field: ${field})`;
+      } catch(err) { output.textContent="Error: "+err; }
     }
   </script>
 </body>
