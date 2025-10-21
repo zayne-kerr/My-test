@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Genesys Cloud Demo – Version: 1</title>
+  <title>Genesys Cloud Demo – Version: 2</title>
   <style>
     body { font-family: system-ui; margin: 2rem; }
     h1 { font-size: 1.2rem; margin-bottom: 1rem; }
@@ -11,7 +11,7 @@
   </style>
 </head>
 <body>
-  <h1>Version: 1</h1>
+  <h1>Version: 2</h1>
   <p><strong>Conversation ID:</strong> <span id="cidValue">(none)</span></p>
 
   <button id="loginBtn">Login & Call API</button>
@@ -19,7 +19,7 @@
 
   <script>
     const CLIENT_ID = "277e7dba-0dc0-4066-9f5b-0db9f909ae5b";
-    const REDIRECT_URI = window.location.origin + window.location.pathname + window.location.search;
+    const BASE_URI = window.location.origin + window.location.pathname; // no ?cid
     const AUTH_URL = "https://login.mypurecloud.ie/oauth/authorize";
     const API_URL = "https://api.mypurecloud.ie/api/v2/users/me";
 
@@ -27,27 +27,27 @@
     const cidSpan = document.getElementById("cidValue");
     const loginBtn = document.getElementById("loginBtn");
 
-    // Show ConversationId from URL (?cid=xxx)
+    // Show ConversationId
     const urlParams = new URLSearchParams(window.location.search);
     const cid = urlParams.get("cid");
     cidSpan.textContent = cid ? cid : "(none)";
 
-    // If token in URL hash, call API
+    // Check for token
     const hash = window.location.hash;
     if (hash.includes("access_token")) {
       const params = new URLSearchParams(hash.substring(1));
       const token = params.get("access_token");
-      window.history.replaceState({}, document.title, REDIRECT_URI);
+      window.history.replaceState({}, document.title, window.location.href.split("#")[0]);
       callApi(token);
     }
 
     // Login flow
     loginBtn.onclick = () => {
-      const authUrl = `${AUTH_URL}?response_type=token&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&force_login=false`;
+      // send redirect_uri without ?cid
+      const authUrl = `${AUTH_URL}?response_type=token&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE_URI)}&force_login=false`;
       window.location = authUrl;
     };
 
-    // API call
     async function callApi(token) {
       output.textContent = "Calling API...";
       try {
