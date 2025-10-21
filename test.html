@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Genesys Cloud Demo – Version: 5</title>
+  <title>Genesys Cloud Demo – Version: 6</title>
   <style>
     body { font-family: system-ui; margin: 2rem; }
     h1 { font-size: 1.2rem; margin-bottom: 1rem; }
@@ -21,7 +21,7 @@
   </style>
 </head>
 <body>
-  <h1>Version: 5</h1>
+  <h1>Version: 6</h1>
   <p><strong>Conversation ID:</strong> <span id="cidValue">(none)</span></p>
 
   <div id="authSection">
@@ -101,8 +101,15 @@
           return;
         }
 
-        dialerContactId = data.dialerContactId || "(none)";
-        dialerContactListId = data.dialerContactListId || "(none)";
+        // Access participants[0].attributes
+        const participant = data.participants && data.participants[0];
+        if (participant && participant.attributes) {
+          dialerContactId = participant.attributes.dialerContactId || "(none)";
+          dialerContactListId = participant.attributes.dialerContactListId || "(none)";
+        } else {
+          dialerContactId = "(none)";
+          dialerContactListId = "(none)";
+        }
 
         output.textContent = `✅ Callback Conversation Retrieved\n\nDialer Contact ID: ${dialerContactId}\nDialer Contact List ID: ${dialerContactListId}`;
       } catch (err) {
