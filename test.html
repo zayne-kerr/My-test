@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Genesys Cloud Demo – Version: 4</title>
+  <title>Genesys Cloud Demo – Version: 5</title>
   <style>
     body { font-family: system-ui; margin: 2rem; }
     h1 { font-size: 1.2rem; margin-bottom: 1rem; }
@@ -21,7 +21,7 @@
   </style>
 </head>
 <body>
-  <h1>Version: 4</h1>
+  <h1>Version: 5</h1>
   <p><strong>Conversation ID:</strong> <span id="cidValue">(none)</span></p>
 
   <div id="authSection">
@@ -39,7 +39,7 @@
 
   <script>
     const CLIENT_ID = "277e7dba-0dc0-4066-9f5b-0db9f909ae5b";
-    const BASE_URI = window.location.origin + window.location.pathname; // redirect URI without ?cid
+    const BASE_URI = window.location.origin + window.location.pathname;
     const AUTH_URL = "https://login.mypurecloud.ie/oauth/authorize";
     const API_HOST = "https://api.mypurecloud.ie";
 
@@ -56,20 +56,16 @@
 
     let accessToken = null;
     let dialerContactId = null;
-    let dialerInteractionId = null;
+    let dialerContactListId = null;
 
-    // ---- Handle Conversation ID ----
+    // --- Handle Conversation ID ---
     const urlParams = new URLSearchParams(window.location.search);
     let cid = urlParams.get("cid");
-
-    // If cid in URL → save it before redirect
     if (cid) sessionStorage.setItem("cid", cid);
-    // Or restore it if lost
     else cid = sessionStorage.getItem("cid");
-
     cidSpan.textContent = cid ? cid : "(none)";
 
-    // ---- Handle Token ----
+    // --- Handle Token ---
     const hash = window.location.hash;
     if (hash.includes("access_token")) {
       const params = new URLSearchParams(hash.substring(1));
@@ -78,7 +74,7 @@
       authSuccess();
     }
 
-    // ---- Login Button ----
+    // --- Login Button ---
     loginBtn.onclick = () => {
       if (cid) sessionStorage.setItem("cid", cid);
       const authUrl = `${AUTH_URL}?response_type=token&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE_URI)}&force_login=false`;
@@ -94,9 +90,9 @@
     // --- Button 1: Get Conversation ---
     btnGetConversation.onclick = async () => {
       if (!cid) { output.textContent = "No Conversation ID found."; return; }
-      output.textContent = "Getting conversation details...";
+      output.textContent = "Getting callback conversation details...";
       try {
-        const resp = await fetch(`${API_HOST}/api/v2/conversations/calls/${cid}`, {
+        const resp = await fetch(`${API_HOST}/api/v2/conversations/callbacks/${cid}`, {
           headers: { Authorization: `Bearer ${accessToken}` }
         });
         const data = await resp.json();
@@ -106,8 +102,9 @@
         }
 
         dialerContactId = data.dialerContactId || "(none)";
-        dialerInteractionId = data.dialerInteractionId || "(none)";
-        output.textContent = `✅ Conversation Retrieved\n\nDialer Contact ID: ${dialerContactId}\nDialer Interaction ID: ${dialerInteractionId}\n\nFull Response:\n${JSON.stringify(data, null, 2)}`;
+        dialerContactListId = data.dialerContactListId || "(none)";
+
+        output.textContent = `✅ Callback Conversation Retrieved\n\nDialer Contact ID: ${dialerContactId}\nDialer Contact List ID: ${dialerContactListId}`;
       } catch (err) {
         output.textContent = "Error: " + err;
       }
