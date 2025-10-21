@@ -2,30 +2,61 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Genesys Cloud Demo – Version: 2</title>
+  <title>Genesys Cloud Demo – Version: 3</title>
   <style>
     body { font-family: system-ui; margin: 2rem; }
     h1 { font-size: 1.2rem; margin-bottom: 1rem; }
-    button { padding: 10px 18px; font-size: 16px; border: none; border-radius: 6px; background: #007bff; color: white; cursor: pointer; }
+    button { 
+      padding: 10px 18px; 
+      font-size: 16px; 
+      border: none; 
+      border-radius: 6px; 
+      background: #007bff; 
+      color: white; 
+      cursor: pointer; 
+      margin-right: 8px; 
+      margin-top: 8px;
+    }
     pre { background: #f4f4f4; padding: 10px; border-radius: 6px; margin-top: 1rem; white-space: pre-wrap; }
   </style>
 </head>
 <body>
-  <h1>Version: 2</h1>
+  <h1>Version: 3</h1>
   <p><strong>Conversation ID:</strong> <span id="cidValue">(none)</span></p>
 
-  <button id="loginBtn">Login & Call API</button>
+  <div id="authSection">
+    <button id="loginBtn">Login</button>
+  </div>
+
+  <div id="apiSection" style="display:none;">
+    <button id="btnGetConversation">Get Conversation</button>
+    <button id="btnGetOutbound">Get Outbound Record</button>
+    <button id="btnUpdateContact">Update Contact</button>
+    <button id="btnManualCall">Manual Call</button>
+  </div>
+
   <pre id="output">(no response yet)</pre>
 
   <script>
     const CLIENT_ID = "277e7dba-0dc0-4066-9f5b-0db9f909ae5b";
     const BASE_URI = window.location.origin + window.location.pathname; // no ?cid
     const AUTH_URL = "https://login.mypurecloud.ie/oauth/authorize";
-    const API_URL = "https://api.mypurecloud.ie/api/v2/users/me";
+    const API_HOST = "https://api.mypurecloud.ie";
 
     const output = document.getElementById("output");
     const cidSpan = document.getElementById("cidValue");
     const loginBtn = document.getElementById("loginBtn");
+    const apiSection = document.getElementById("apiSection");
+    const authSection = document.getElementById("authSection");
+
+    const btnGetConversation = document.getElementById("btnGetConversation");
+    const btnGetOutbound = document.getElementById("btnGetOutbound");
+    const btnUpdateContact = document.getElementById("btnUpdateContact");
+    const btnManualCall = document.getElementById("btnManualCall");
+
+    let accessToken = null;
+    let dialerContactId = null;
+    let dialerInteractionId = null;
 
     // Show ConversationId
     const urlParams = new URLSearchParams(window.location.search);
@@ -36,30 +67,59 @@
     const hash = window.location.hash;
     if (hash.includes("access_token")) {
       const params = new URLSearchParams(hash.substring(1));
-      const token = params.get("access_token");
+      accessToken = params.get("access_token");
       window.history.replaceState({}, document.title, window.location.href.split("#")[0]);
-      callApi(token);
+      authSuccess();
     }
 
     // Login flow
     loginBtn.onclick = () => {
-      // send redirect_uri without ?cid
       const authUrl = `${AUTH_URL}?response_type=token&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE_URI)}&force_login=false`;
       window.location = authUrl;
     };
 
-    async function callApi(token) {
-      output.textContent = "Calling API...";
+    function authSuccess() {
+      authSection.style.display = "none";
+      apiSection.style.display = "block";
+      output.textContent = "✅ Logged in.\nReady to call APIs.";
+    }
+
+    // --- Button 1: Get Conversation ---
+    btnGetConversation.onclick = async () => {
+      if (!cid) { output.textContent = "No Conversation ID in URL."; return; }
+      output.textContent = "Getting conversation details...";
       try {
-        const resp = await fetch(API_URL, {
-          headers: { Authorization: `Bearer ${token}` }
+        const resp = await fetch(`${API_HOST}/api/v2/conversations/calls/${cid}`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
         });
         const data = await resp.json();
-        output.textContent = JSON.stringify(data, null, 2);
+        if (!resp.ok) {
+          output.textContent = `Error ${resp.status}: ${JSON.stringify(data, null, 2)}`;
+          return;
+        }
+
+        dialerContactId = data.dialerContactId || "(none)";
+        dialerInteractionId = data.dialerInteractionId || "(none)";
+        output.textContent = `✅ Conversation Retrieved\n\nDialer Contact ID: ${dialerContactId}\nDialer Interaction ID: ${dialerInteractionId}\n\nFull Response:\n${JSON.stringify(data, null, 2)}`;
       } catch (err) {
         output.textContent = "Error: " + err;
       }
-    }
+    };
+
+    // --- Button 2: Get Outbound Record (placeholder) ---
+    btnGetOutbound.onclick = () => {
+      output.textContent = "📞 Get Outbound Record API will be implemented once endpoint details are supplied.";
+    };
+
+    // --- Button 3: Update Contact (placeholder) ---
+    btnUpdateContact.onclick = () => {
+      output.textContent = "✏️ Update Contact API will be implemented once endpoint details are supplied.";
+    };
+
+    // --- Button 4: Manual Call (placeholder) ---
+    btnManualCall.onclick = () => {
+      output.textContent = "📲 Manual Call API will be implemented once endpoint details are supplied.";
+    };
   </script>
 </body>
 </html>
