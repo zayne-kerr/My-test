@@ -12,34 +12,44 @@
 <body>
   <h1>Genesys Cloud API Demo</h1>
   <p>This example uses <strong>OAuth implicit grant</strong> to get a token and call <code>/api/v2/users/me</code>.</p>
+
+  <p><strong>Conversation ID:</strong> <span id="cidValue">(none)</span></p>
+
   <button id="loginBtn">Login & Call API</button>
   <pre id="output">(no response yet)</pre>
 
   <script>
     const CLIENT_ID = "277e7dba-0dc0-4066-9f5b-0db9f909ae5b";
-    const REDIRECT_URI = window.location.origin + window.location.pathname; // same page
+    const REDIRECT_URI = window.location.origin + window.location.pathname + window.location.search; // keep ?cid=
     const AUTH_URL = "https://login.mypurecloud.ie/oauth/authorize";
     const API_URL = "https://api.mypurecloud.ie/api/v2/users/me";
 
     const output = document.getElementById("output");
     const loginBtn = document.getElementById("loginBtn");
+    const cidSpan = document.getElementById("cidValue");
 
-    // 1. Check if we were redirected back with a token in URL hash
+    // --- Extract cid from query string and display ---
+    const urlParams = new URLSearchParams(window.location.search);
+    const cid = urlParams.get("cid");
+    cidSpan.textContent = cid ? cid : "(none)";
+
+    // --- Handle token in URL hash ---
     const hash = window.location.hash;
     if (hash && hash.includes("access_token")) {
       const params = new URLSearchParams(hash.substring(1));
       const token = params.get("access_token");
-      window.history.replaceState({}, document.title, REDIRECT_URI); // clean URL
+      // Keep the ?cid in the address, but remove the hash
+      window.history.replaceState({}, document.title, REDIRECT_URI);
       callApi(token);
     }
 
-    // 2. Start OAuth flow on button click
+    // --- Start OAuth flow ---
     loginBtn.onclick = () => {
       const authUrl = `${AUTH_URL}?response_type=token&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&force_login=false`;
       window.location = authUrl;
     };
 
-    // 3. Call Genesys Cloud API with token
+    // --- Call Genesys Cloud API ---
     async function callApi(token) {
       output.textContent = "Calling API...";
       try {
