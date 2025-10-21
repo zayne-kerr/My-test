@@ -2,10 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Genesys Cloud Demo – Version: 13</title>
+  <title>Genesys Cloud Demo – Version: 14</title>
   <style>
     body { font-family: system-ui; margin: 2rem; }
-    h1 { font-size: 1.2rem; margin-bottom: 1rem; }
     button { 
       padding: 6px 12px; 
       font-size: 14px; 
@@ -19,24 +18,13 @@
     }
     input[type=text] { width: 200px; padding: 4px; margin-right: 4px; }
     .field { margin-top: 8px; }
-    .section { margin-top: 16px; }
     pre { background: #f4f4f4; padding: 10px; border-radius: 6px; white-space: pre-wrap; }
   </style>
 </head>
 <body>
-  <h1>Version: 13</h1>
-  <p><strong>Conversation ID:</strong> <span id="cidValue">(none)</span></p>
+  <h1>Version: 14</h1>
 
-  <div id="apiSection" style="display:none;">
-    <div class="section">
-      <div id="convOutput" class="field">(Conversation output)</div>
-    </div>
-
-    <div class="section">
-      <div id="outboundFields" class="field">(Outbound fields)</div>
-      <button id="btnUpdateAll" style="display:none;">Update Both Fields</button>
-    </div>
-  </div>
+  <div id="outboundFields"></div>
 
   <pre id="output">(no response yet)</pre>
 
@@ -47,11 +35,7 @@
     const API_HOST = "https://api.mypurecloud.ie";
 
     const output = document.getElementById("output");
-    const cidSpan = document.getElementById("cidValue");
-    const apiSection = document.getElementById("apiSection");
-    const convOutput = document.getElementById("convOutput");
     const outboundFields = document.getElementById("outboundFields");
-    const btnUpdateAll = document.getElementById("btnUpdateAll");
 
     let accessToken = null;
     let cid = null;
@@ -64,9 +48,8 @@
     cid = urlParams.get("cid");
     if (cid) sessionStorage.setItem("cid", cid);
     else cid = sessionStorage.getItem("cid");
-    cidSpan.textContent = cid ? cid : "(none)";
 
-    // --- Check access token in hash ---
+    // --- OAuth Token ---
     const hash = window.location.hash;
     if (hash.includes("access_token")) {
       const params = new URLSearchParams(hash.substring(1));
@@ -74,48 +57,32 @@
       window.history.replaceState({}, document.title, window.location.href.split("#")[0]);
       startFlow();
     } else {
-      // Redirect to OAuth login
       const authUrl = `${AUTH_URL}?response_type=token&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE_URI)}&force_login=false`;
       window.location = authUrl;
     }
 
     async function startFlow() {
-      apiSection.style.display = "block";
-      output.textContent = "✅ Logged in. Fetching Conversation and Outbound Record...";
-
+      output.textContent = "✅ Logged in. Loading conversation and outbound record...";
       try {
         // --- Get Conversation ---
         const convResp = await fetch(`${API_HOST}/api/v2/conversations/callbacks/${cid}`, {
           headers: { Authorization: `Bearer ${accessToken}` }
         });
         const convData = await convResp.json();
-        if (!convResp.ok) { output.textContent = `Error getting conversation: ${JSON.stringify(convData, null,2)}`; return; }
-
         const participant = convData.participants && convData.participants[0];
         if (participant && participant.attributes) {
-          dialerContactId = participant.attributes.dialerContactId || "(none)";
-          dialerContactListId = participant.attributes.dialerContactListId || "(none)";
-        } else {
-          dialerContactId = "(none)";
-          dialerContactListId = "(none)";
+          dialerContactId = participant.attributes.dialerContactId;
+          dialerContactListId = participant.attributes.dialerContactListId;
         }
-        convOutput.textContent = `Dialer Contact ID: ${dialerContactId}, Dialer Contact List ID: ${dialerContactListId}`;
 
         // --- Get Outbound Record ---
         const outResp = await fetch(`${API_HOST}/api/v2/outbound/contactlists/${dialerContactListId}/contacts/${dialerContactId}`, {
           method: "GET",
-          headers: { 
-            "Authorization": `Bearer ${accessToken}`,
-            "Content-Type": "application/json"
-          }
+          headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" }
         });
-        const outData = await outResp.json();
-        if (!outResp.ok) { output.textContent = `Error getting outbound: ${JSON.stringify(outData,null,2)}`; return; }
+        outboundData = await outResp.json();
 
-        outboundData = outData;
         renderOutboundFields();
-        btnUpdateAll.style.display = "inline-block";
-
       } catch(err) {
         output.textContent = "Error: "+err;
       }
@@ -139,32 +106,26 @@
       });
     }
 
-    // --- Update BOTH OTHER1 and OTHER2 ---
     async function updateFields() {
       outboundData.data.OTHER1=document.getElementById("OTHER1").value;
       outboundData.data.OTHER2=document.getElementById("OTHER2").value;
 
       const payload = { contactListId:dialerContactListId, data: outboundData.data };
       try {
-        const resp = await fetch(`${API_HOST}/api/v2/outbound/contactlists/${dialerContactListId}/contacts/${dialerContactId}`, {
+        await fetch(`${API_HOST}/api/v2/outbound/contactlists/${dialerContactListId}/contacts/${dialerContactId}`, {
           method: "PUT",
           headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
-        const data = await resp.json();
-        if (!resp.ok) { output.textContent=`Error updating fields: ${JSON.stringify(data,null,2)}`; return; }
-        output.textContent="✅ OTHER1 and OTHER2 updated successfully.";
-      } catch(err) { output.textContent="Error: "+err; }
+      } catch(err) { output.textContent="Update Error: "+err; }
     }
 
-    // --- Manual Dial (update first) ---
     async function manualDial(field) {
       output.textContent = `Updating fields before dialing ${field}...`;
-      await updateFields(); // update first
+      await updateFields(); // auto update
 
       const number = document.getElementById(field).value;
-      if (!cid) { output.textContent="No Conversation ID."; return; }
-      if (!number) { output.textContent=`${field} is empty.`; return; }
+      if (!cid || !number) { output.textContent=`Cannot dial ${field}.`; return; }
 
       const body = { callNumber:number, phoneColumn:field };
       output.textContent = `Dialing ${number} from ${field}...`;
