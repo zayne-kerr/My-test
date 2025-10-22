@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Genesys Cloud Demo – Version: 14</title>
+  <style>
+    body { font-family: system-ui; margin: 2rem; }
+    button { 
+      padding: 6px 12px; 
+      font-size: 14px; 
+      border: none; 
+      border-radius: 6px; 
+      background: #007bff; 
+      color: white; 
+      cursor: pointer; 
+      margin-left: 4px;
+      margin-top: 8px;
+    }
+    input[type=text] { width: 200px; padding: 4px; margin-right: 4px; }
+    .field { margin-top: 8px; }
+    pre { background: #f4f4f4; padding: 10px; border-radius: 6px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Version: 14</h1>
+
+  <div id="outboundFields"></div>
+
+  <pre id="output">(no response yet)</pre>
+
+  <script>
+    const CLIENT_ID = "277e7dba-0dc0-4066-9f5b-0db9f909ae5b";
+    const BASE_URI = window.location.origin + window.location.pathname;
+    const AUTH_URL = "https://login.mypurecloud.ie/oauth/authorize";
+    const API_HOST = "https://api.mypurecloud.ie";
+
+    const output = document.getElementById("output");
+    const outboundFields = document.getElementById("outboundFields");
+
+    let accessToken = null;
+    let cid = null;
+    let dialerContactId = null;
+    let dialerContactListId = null;
+    let outboundData = null;
+
+    // --- Conversation ID ---
+    const urlParams = new URLSearchParams(window.location.search);
+    cid = urlParams.get("cid");
+    if (cid) sessionStorage.setItem("cid", cid);
+    else cid = sessionStorage.getItem("cid");
+
+    // --- OAuth Token ---
+    const hash = window.location.hash;
+    if (hash.includes("access_token")) {
+      const params = new URLSearchParams(hash.substring(1));
+      accessToken = params.get("access_token");
+      window.history.replaceState({}, document.title, window.location.href.split("#")[0]);
+      startFlow();
+    } else {
+      const authUrl = `${AUTH_URL}?response_type=token&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(BASE_URI)}&force_login=false`;
+      window.location = authUrl;
+    }
+
+    async function startFlow() {
+      output.textContent = "✅ Logged in. Loading conversation and outbound record...";
+      try {
+        // --- Get Conversation ---
+        const convResp = await fetch(`${API_HOST}/api/v2/conversations/callbacks/${cid}`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const convData = await convResp.json();
+        const participant = convData.participants && convData.participants[0];
+        if (participant && participant.attributes) {
+          dialerContactId = participant.attributes.dialerContactId;
+          dialerContactListId = participant.attributes.dialerContactListId;
+        }
+
+        // --- Get Outbound Record ---
+        const outResp = await fetch(`${API_HOST}/api/v2/outbound/contactlists/${dialerContactListId}/contacts/${dialerContactId}`, {
+          method: "GET",
+          headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" }
+        });
+        outboundData = await outResp.json();
+
+        renderOutboundFields();
+      } catch(err) {
+        output.textContent = "Error: "+err;
+      }
+    }
+
+    function renderOutboundFields() {
+      outboundFields.innerHTML = "";
+      ["OTHER1","OTHER2"].forEach(field=>{
+        const value = outboundData.data[field]||"";
+        const input = document.createElement("input");
+        input.type="text"; input.id=field; input.value=value;
+
+        const manualBtn = document.createElement("button");
+        manualBtn.textContent="Manual Call";
+        manualBtn.onclick=()=>manualDial(field);
+
+        outboundFields.appendChild(document.createTextNode(field+": "));
+        outboundFields.appendChild(input);
+        outboundFields.appendChild(manualBtn);
+        outboundFields.appendChild(document.createElement("br"));
+      });
+    }
+
+    async function updateFields() {
+      outboundData.data.OTHER1=document.getElementById("OTHER1").value;
+      outboundData.data.OTHER2=document.getElementById("OTHER2").value;
+
+      const payload = { contactListId:dialerContactListId, data: outboundData.data };
+      try {
+        await fetch(`${API_HOST}/api/v2/outbound/contactlists/${dialerContactListId}/contacts/${dialerContactId}`, {
+          method: "PUT",
+          headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+      } catch(err) { output.textContent="Update Error: "+err; }
+    }
+
+    async function manualDial(field) {
+      output.textContent = `Updating fields before dialing ${field}...`;
+      await updateFields(); // auto update
+
+      const number = document.getElementById(field).value;
+      if (!cid || !number) { output.textContent=`Cannot dial ${field}.`; return; }
+
+      const body = { callNumber:number, phoneColumn:field };
+      output.textContent = `Dialing ${number} from ${field}...`;
+
+      try {
+        const resp = await fetch(`${API_HOST}/api/v2/conversations/calls/${cid}`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        const data = await resp.json();
+        if (!resp.ok) { output.textContent=`Error ${resp.status}: ${JSON.stringify(data,null,2)}`; return; }
+        output.textContent=`✅ Call initiated to ${number} (field: ${field})`;
+      } catch(err) { output.textContent="Error: "+err; }
+    }
+  </script>
+</body>
+</html>
